@@ -1,0 +1,48 @@
+{
+  "eventId": "b0000000-0000-4000-8000-000000000001",
+  "eventType": "order.created",
+  "version": 1,
+  "occurredAt": "2026-09-18T12:00:00Z",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "orderId": "c0000000-0000-4000-8000-000000000001",
+  "payload": {
+    "userId": "80000000-0000-4000-8000-000000000001",
+    "restaurantId": "10000000-0000-4000-8000-000000000001",
+    "code": "FC-000001",
+    "status": "PENDENTE",
+    "paymentMethod": "PIX",
+    "items": [
+      {
+        "productId": "30000000-0000-4000-8000-000000000003",
+        "productName": "Baião de dois",
+        "unitPrice": 42.9,
+        "optionsPrice": 6,
+        "quantity": 1,
+        "total": 48.9,
+        "options": [
+          {
+            "optionId": "50000000-0000-4000-8000-000000000001",
+            "optionName": "Queijo coalho",
+            "priceDelta": 6,
+            "quantity": 1
+          }
+        ]
+      }
+    ],
+    "subtotal": 48.9,
+    "deliveryFee": 7.9,
+    "discount": 0,
+    "total": 56.8,
+    "currency": "BRL",
+    "deliveryAddress": {
+      "recipientName": "Cliente Demo",
+      "street": "Rua de Exemplo",
+      "number": "100",
+      "complement": null,
+      "neighborhood": "Centro",
+      "city": "São Paulo",
+      "state": "SP",
+      "postalCode": "01001000"
+    }
+  }
+}

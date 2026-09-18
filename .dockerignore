@@ -1,0 +1,14 @@
+.git
+.env
+.env.*
+**/node_modules
+**/dist
+**/coverage
+**/playwright-report
+**/test-results
+.tmp
+.local
+artifacts
+dependency-check-data
+**/*.log
+**/target

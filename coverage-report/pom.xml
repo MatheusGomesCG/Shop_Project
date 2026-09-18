@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>app.foodcenture</groupId>
+    <artifactId>foodcenture-parent</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>coverage-report</artifactId>
+  <packaging>pom</packaging>
+  <dependencies>
+    <dependency>
+      <groupId>app.foodcenture</groupId>
+      <artifactId>auth</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>app.foodcenture</groupId>
+      <artifactId>catalog</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>app.foodcenture</groupId>
+      <artifactId>order</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>app.foodcenture</groupId>
+      <artifactId>payment</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>app.foodcenture</groupId>
+      <artifactId>delivery</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>app.foodcenture</groupId>
+      <artifactId>admin-bff</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-antrun-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>stage-aggregate-classes</id>
+            <phase>prepare-package</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <!-- jacoco:check lê bytecode e .exec locais, não o XML agregado: junta aqui as classes dos serviços. -->
+                <mkdir dir="${project.build.outputDirectory}"/>
+                <copy todir="${project.build.outputDirectory}">
+                  <fileset dir="${project.basedir}/../services" includes="*/target/classes/**/*.class"/>
+                  <cutdirsmapper dirs="3"/>
+                </copy>
+              </target>
+            </configuration>
+          </execution>
+          <execution>
+            <id>require-merged-coverage</id>
+            <phase>verify</phase>
+            <goals><goal>run</goal></goals>
+            <configuration>
+              <target>
+                <!-- Sem .exec o jacoco:check passa em silêncio; aqui isso vira erro. -->
+                <fail message="Nenhum serviço gerou jacoco.exec. Rode mvn clean verify na raiz.">
+                  <condition>
+                    <not><available file="${project.build.directory}/jacoco.exec"/></not>
+                  </condition>
+                </fail>
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>merge-service-execution-data</id>
+            <phase>prepare-package</phase>
+            <goals><goal>merge</goal></goals>
+            <configuration>
+              <fileSets>
+                <fileSet>
+                  <directory>${project.basedir}/../services</directory>
+                  <includes><include>*/target/jacoco.exec</include></includes>
+                </fileSet>
+              </fileSets>
+              <destFile>${project.build.directory}/jacoco.exec</destFile>
+            </configuration>
+          </execution>
+          <execution>
+            <id>aggregate-report</id>
+            <phase>verify</phase>
+            <goals><goal>report-aggregate</goal></goals>
+            <configuration>
+              <outputDirectory>${project.build.directory}/site/jacoco-aggregate</outputDirectory>
+              <formats><format>XML</format><format>CSV</format><format>HTML</format></formats>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

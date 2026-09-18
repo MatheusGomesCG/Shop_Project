@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foodcenture.example/contracts/order.status.changed.schema.json",
+  "title": "FoodCenture: order.status.changed v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "version",
+    "occurredAt",
+    "traceId",
+    "orderId",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "const": "order.status.changed"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "traceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "previousStatus",
+        "status",
+        "author",
+        "reason"
+      ],
+      "properties": {
+        "previousStatus": {
+          "type": "string",
+          "enum": [
+            "PENDENTE",
+            "CONFIRMADO",
+            "EM_PREPARO",
+            "EM_ENTREGA",
+            "ENTREGUE",
+            "CANCELADO"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDENTE",
+            "CONFIRMADO",
+            "EM_PREPARO",
+            "EM_ENTREGA",
+            "ENTREGUE",
+            "CANCELADO"
+          ]
+        },
+        "author": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "userId",
+            "role"
+          ],
+          "properties": {
+            "userId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "CUSTOMER",
+                "ADMIN",
+                "OPERACAO"
+              ]
+            }
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    }
+  }
+}

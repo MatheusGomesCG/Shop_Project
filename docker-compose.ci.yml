@@ -1,0 +1,53 @@
+# Overlay do job e2e: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait
+# Roda as imagens do SHA testado (IMAGE_TAG), sem portas publicadas e sem dados persistidos.
+services:
+  postgres:
+    ports: !reset []
+    volumes: !reset []
+
+  kafka:
+    ports: !reset []
+    volumes: !reset []
+
+  kafka-ui:
+    profiles: [ui]
+
+  auth:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/auth:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []
+
+  catalog:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/catalog:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []
+
+  order:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/order:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []
+
+  payment:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/payment:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []
+    environment:
+      PAYMENT_GATEWAY_MODE: stub
+
+  delivery:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/delivery:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []
+    environment:
+      # Entregador anda rápido para o teste de rastreio não esperar minutos.
+      DELIVERY_SIMULATOR_INTERVAL_MS: 250
+
+  admin-bff:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/admin-bff:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []
+
+  web:
+    build: !reset null
+    image: ghcr.io/matheusgomescg/shop_project/web:${IMAGE_TAG:?Defina IMAGE_TAG com o SHA}
+    ports: !reset []

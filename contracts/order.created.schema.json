@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foodcenture.example/contracts/order.created.schema.json",
+  "title": "FoodCenture: order.created v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "version",
+    "occurredAt",
+    "traceId",
+    "orderId",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "const": "order.created"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "traceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "userId",
+        "restaurantId",
+        "code",
+        "status",
+        "paymentMethod",
+        "items",
+        "subtotal",
+        "deliveryFee",
+        "discount",
+        "total",
+        "currency",
+        "deliveryAddress"
+      ],
+      "properties": {
+        "userId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "restaurantId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 24
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "PENDENTE",
+            "CONFIRMADO",
+            "EM_PREPARO",
+            "EM_ENTREGA",
+            "ENTREGUE",
+            "CANCELADO"
+          ],
+          "const": "PENDENTE"
+        },
+        "paymentMethod": {
+          "type": "string",
+          "enum": [
+            "PIX",
+            "CARTAO_CREDITO",
+            "CARTAO_DEBITO",
+            "DINHEIRO",
+            "CARTEIRA",
+            "VALE_REFEICAO"
+          ]
+        },
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "productId",
+              "productName",
+              "unitPrice",
+              "optionsPrice",
+              "quantity",
+              "total",
+              "options"
+            ],
+            "properties": {
+              "productId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "productName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "unitPrice": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 9999999999.99,
+                "multipleOf": 0.01
+              },
+              "optionsPrice": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 9999999999.99,
+                "multipleOf": 0.01
+              },
+              "quantity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999
+              },
+              "total": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 9999999999.99,
+                "multipleOf": 0.01
+              },
+              "options": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "optionId",
+                    "optionName",
+                    "priceDelta",
+                    "quantity"
+                  ],
+                  "properties": {
+                    "optionId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "optionName": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "priceDelta": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 9999999999.99,
+                      "multipleOf": 0.01
+                    },
+                    "quantity": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 999
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "subtotal": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 9999999999.99,
+          "multipleOf": 0.01
+        },
+        "deliveryFee": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 9999999999.99,
+          "multipleOf": 0.01
+        },
+        "discount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 9999999999.99,
+          "multipleOf": 0.01
+        },
+        "total": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 9999999999.99,
+          "multipleOf": 0.01
+        },
+        "currency": {
+          "type": "string",
+          "const": "BRL"
+        },
+        "deliveryAddress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "recipientName",
+            "street",
+            "number",
+            "complement",
+            "neighborhood",
+            "city",
+            "state",
+            "postalCode"
+          ],
+          "properties": {
+            "recipientName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "street": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "number": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 20
+            },
+            "complement": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "maxLength": 120
+            },
+            "neighborhood": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "city": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120
+            },
+            "state": {
+              "type": "string",
+              "pattern": "^[A-Z]{2}$"
+            },
+            "postalCode": {
+              "type": "string",
+              "pattern": "^[0-9]{8}$"
+            }
+          }
+        }
+      }
+    }
+  }
+}

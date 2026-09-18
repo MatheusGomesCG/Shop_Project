@@ -1,0 +1,268 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main, develop]
+    # edited: corrigir o título do PR revalida a governança sem precisar de novo push.
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MAVEN_ARGS: --batch-mode --no-transfer-progress
+
+jobs:
+  governance:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Card do backlog no título do PR
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          if [[ ! $TITLE =~ ^\[((INFRA|FE|AUTH|CAT|CART|PAY|ORD|DEL|USR|ADM|QA|A11Y)-[0-9]+)\] ]]; then
+            echo "::error::Título do PR deve começar com [PREFIXO-N], ex.: [AUTH-2] Login com JWT. Recebido: $TITLE"
+            exit 1
+          fi
+          card=${BASH_REMATCH[1]}
+          if ! grep -qw -- "$card" BACKLOG.md; then
+            echo "::error::O card $card não existe no BACKLOG.md."
+            exit 1
+          fi
+          if grep -Eq '^\s*- \[ \]' <<< "$BODY"; then
+            echo "::warning::A descrição do PR ainda tem critério de aceite ou checklist sem marcar."
+          fi
+
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Testes, Testcontainers e gate de cobertura (pom.xml)
+        run: mvn clean verify
+      - name: Cobertura agregada
+        if: ${{ !cancelled() }}
+        run: bash infra/ci/coverage.sh
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: backend-coverage
+          path: coverage-report/target/site/jacoco-aggregate/
+          if-no-files-found: ignore
+      - name: Comentar cobertura no PR
+        # PR de fork recebe token só-leitura; lá a tabela fica só no resumo do job.
+        if: >-
+          !cancelled() && github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          hashFiles('coverage-report/target/coverage-summary.md') != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh pr comment ${{ github.event.pull_request.number }}
+          --body-file coverage-report/target/coverage-summary.md --edit-last --create-if-none
+
+  architecture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Regras ArchUnit
+        run: mvn test -Dtest='Arch*Test' -Dsurefire.failIfNoSpecifiedTests=false
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - name: Testes com gate de cobertura (jest.config.js)
+        run: npm run test:ci
+      - run: npm run build -- --configuration production
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: frontend-coverage
+          path: web/coverage/
+          if-no-files-found: ignore
+
+  contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Um schema por tópico Kafka
+        run: |
+          for topic in order.created order.status.changed payment.approved payment.declined delivery.assigned delivery.position; do
+            if [[ ! -s contracts/$topic.schema.json ]]; then
+              echo "::error::Falta contracts/$topic.schema.json — todo tópico precisa de contrato."
+              exit 1
+            fi
+          done
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Testes de contrato
+        run: mvn test -Dtest='*ContractTest' -Dsurefire.failIfNoSpecifiedTests=false
+
+  e2e:
+    needs: [backend, frontend]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      IMAGE_TAG: ${{ github.sha }}
+      COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Segredos descartáveis
+        run: |
+          for key in POSTGRES_PASSWORD JWT_SECRET; do
+            value=$(openssl rand -hex 32)
+            echo "::add-mask::$value"
+            echo "$key=$value" >> "$GITHUB_ENV"
+          done
+      - name: Construir imagens deste commit
+        # Só o arquivo base tem build; as tags saem no formato GHCR que o overlay espera.
+        run: docker compose -f docker-compose.yml build
+      - name: Subir stack
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d --wait --wait-timeout 300
+      - name: Endereço do web
+        # O overlay não publica portas: o teste fala direto com o IP do container.
+        run: |
+          ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(docker compose ps -q web)")
+          echo "PLAYWRIGHT_BASE_URL=http://$ip" >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Playwright
+        working-directory: web
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          npx playwright test
+      - name: Logs da stack
+        if: failure()
+        run: docker compose logs --no-color --timestamps > compose.log
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: |
+            web/playwright-report/
+            web/test-results/
+            compose.log
+          if-no-files-found: ignore
+
+  security:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Cache da base NVD
+        # Sem cache o Dependency-Check baixa a base inteira a cada execução.
+        # Fica fora de ~/.m2 para não inflar o cache do Maven do setup-java.
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/dependency-check
+          key: nvd-${{ github.run_id }}
+          restore-keys: nvd-
+      - name: OWASP Dependency-Check (reprova com CVSS >= 7)
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: >-
+          mvn org.owasp:dependency-check-maven:12.2.2:aggregate
+          -DfailBuildOnCVSS=7
+          "-DdataDirectory=$HOME/.cache/dependency-check"
+          -DnvdApiKeyEnvironmentVariable=NVD_API_KEY
+          -DossindexAnalyzerEnabled=false
+      - name: Trivy filesystem (reprova com HIGH/CRITICAL)
+        if: ${{ !cancelled() }}
+        # Pin por SHA: tags desta action já foram sequestradas; tag pode mudar, SHA não.
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: dependency-check-report
+          path: target/dependency-check-report.html
+          if-no-files-found: ignore
+
+  quality-gate:
+    needs: [governance, backend, architecture, frontend, contracts, e2e, security]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Todos os jobs verdes
+        env:
+          RESULTS: ${{ join(needs.*.result, ', ') }}
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          echo "Resultados: $RESULTS"
+          # Em push não existe PR: governance 'skipped' é o único resultado não-success aceito.
+          if ! jq -e --arg event "$GITHUB_EVENT_NAME" '
+            to_entries | all(.value.result == "success"
+              or (.key == "governance" and $event == "push" and .value.result == "skipped"))
+          ' <<< "$NEEDS" > /dev/null; then
+            echo "::error::Quality gate reprovado: algum job falhou, foi cancelado ou não rodou ($RESULTS)."
+            exit 1
+          fi

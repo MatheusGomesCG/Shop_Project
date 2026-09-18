@@ -1,0 +1,16 @@
+{
+  "eventId": "b0000000-0000-4000-8000-000000000006",
+  "eventType": "delivery.position",
+  "version": 1,
+  "occurredAt": "2026-09-18T12:00:00Z",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "orderId": "c0000000-0000-4000-8000-000000000001",
+  "payload": {
+    "deliveryId": "a0000000-0000-4000-8000-000000000001",
+    "courierId": "70000000-0000-4000-8000-000000000001",
+    "latitude": -23.55052,
+    "longitude": -46.633308,
+    "recordedAt": "2026-09-18T12:10:00Z",
+    "sequence": 1
+  }
+}

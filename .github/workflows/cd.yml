@@ -1,0 +1,159 @@
+name: CD
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Ambiente de destino
+        type: choice
+        options: [staging, production]
+        default: staging
+
+# Deploys no mesmo ambiente nunca correm em paralelo nem se cancelam no meio.
+concurrency:
+  group: cd-${{ inputs.environment || 'staging' }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_PREFIX: ghcr.io/matheusgomescg/shop_project
+
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - name: Exigir CI verde em main
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          if [[ $GITHUB_EVENT_NAME == workflow_run ]]; then
+            # O filtro "branches: [main]" também casa PR de fork cujo branch se chama main; só push vale.
+            if [[ $CONCLUSION != success || $RUN_EVENT != push ]]; then
+              echo "::error::CI terminou como '$CONCLUSION' (evento $RUN_EVENT). Deploy abortado."
+              exit 1
+            fi
+            sha=$RUN_SHA
+          else
+            if [[ $GITHUB_REF != refs/heads/main ]]; then
+              echo "::error::Deploy manual só a partir de main."
+              exit 1
+            fi
+            sha=$GITHUB_SHA
+            conclusion=$(gh run list -R "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$sha" --event push \
+              --limit 1 --json conclusion --jq '.[0].conclusion // "inexistente"')
+            if [[ $conclusion != success ]]; then
+              echo "::error::CI de $sha está '$conclusion'. Deploy abortado."
+              exit 1
+            fi
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  build-images:
+    needs: guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        service: [auth, catalog, order, payment, delivery, admin-bff, web]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.service == 'web' && 'web/Dockerfile' || 'infra/java/Dockerfile' }}
+          build-args: SERVICE=${{ matrix.service }}
+          push: true
+          # SHA longo identifica o release; latest só acompanha a branch default.
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.service }}:${{ needs.guard.outputs.sha }}
+            ${{ github.ref_name == github.event.repository.default_branch && format('{0}/{1}:latest', env.IMAGE_PREFIX, matrix.service) || '' }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+
+  deploy-staging:
+    needs: [guard, build-images]
+    # STAGING_URL é variável do repositório: enquanto não existir servidor, o job é pulado em vez de falhar.
+    if: vars.STAGING_URL != '' && (github.event_name == 'workflow_run' || inputs.environment == 'staging')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+      - name: Migrate, deploy e smoke test
+        env:
+          IMAGE_TAG: ${{ needs.guard.outputs.sha }}
+          SSH_TARGET: ${{ secrets.STAGING_SSH_TARGET }}
+          SSH_KEY: ${{ secrets.STAGING_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.STAGING_SSH_KNOWN_HOSTS }}
+          DB_URL: ${{ secrets.STAGING_DB_URL }}
+          DB_USER: ${{ secrets.STAGING_DB_USER }}
+          DB_PASSWORD: ${{ secrets.STAGING_DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.STAGING_JWT_SECRET }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash infra/deploy/ship.sh recreate
+
+  deploy-production:
+    needs: [guard, build-images]
+    if: github.event_name == 'workflow_dispatch' && inputs.environment == 'production'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: read
+    environment:
+      name: production
+      url: ${{ vars.PRODUCTION_URL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.guard.outputs.sha }}
+          persist-credentials: false
+      - name: Migrate, deploy rolling e rollback se a saúde falhar
+        env:
+          IMAGE_TAG: ${{ needs.guard.outputs.sha }}
+          SSH_TARGET: ${{ secrets.PROD_SSH_TARGET }}
+          SSH_KEY: ${{ secrets.PROD_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PROD_SSH_KNOWN_HOSTS }}
+          DB_URL: ${{ secrets.PROD_DB_URL }}
+          DB_USER: ${{ secrets.PROD_DB_USER }}
+          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.PROD_JWT_SECRET }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash infra/deploy/ship.sh rolling

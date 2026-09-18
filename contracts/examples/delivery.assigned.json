@@ -1,0 +1,17 @@
+{
+  "eventId": "b0000000-0000-4000-8000-000000000005",
+  "eventType": "delivery.assigned",
+  "version": 1,
+  "occurredAt": "2026-09-18T12:00:00Z",
+  "traceId": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "orderId": "c0000000-0000-4000-8000-000000000001",
+  "payload": {
+    "deliveryId": "a0000000-0000-4000-8000-000000000001",
+    "courier": {
+      "courierId": "70000000-0000-4000-8000-000000000001",
+      "name": "Entregador Demo 1",
+      "vehicle": "BIKE"
+    },
+    "estimatedArrivalAt": "2026-09-18T12:35:00Z"
+  }
+}

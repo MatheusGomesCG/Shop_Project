@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foodcenture.example/contracts/payment.approved.schema.json",
+  "title": "FoodCenture: payment.approved v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "version",
+    "occurredAt",
+    "traceId",
+    "orderId",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "const": "payment.approved"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "traceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "paymentId",
+        "method",
+        "amount",
+        "currency",
+        "approvedAt",
+        "providerReference"
+      ],
+      "properties": {
+        "paymentId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "PIX",
+            "CARTAO_CREDITO",
+            "CARTAO_DEBITO",
+            "DINHEIRO",
+            "CARTEIRA",
+            "VALE_REFEICAO"
+          ]
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 9999999999.99,
+          "multipleOf": 0.01
+        },
+        "currency": {
+          "type": "string",
+          "const": "BRL"
+        },
+        "approvedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "providerReference": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://foodcenture.example/contracts/delivery.assigned.schema.json",
+  "title": "FoodCenture: delivery.assigned v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "eventId",
+    "eventType",
+    "version",
+    "occurredAt",
+    "traceId",
+    "orderId",
+    "payload"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "type": "string",
+      "const": "delivery.assigned"
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "traceId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{32}$",
+      "not": {
+        "const": "00000000000000000000000000000000"
+      }
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deliveryId",
+        "courier",
+        "estimatedArrivalAt"
+      ],
+      "properties": {
+        "deliveryId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "courier": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "courierId",
+            "name",
+            "vehicle"
+          ],
+          "properties": {
+            "courierId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "vehicle": {
+              "type": "string",
+              "enum": [
+                "BIKE",
+                "MOTO",
+                "CARRO"
+              ]
+            }
+          }
+        },
+        "estimatedArrivalAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}
